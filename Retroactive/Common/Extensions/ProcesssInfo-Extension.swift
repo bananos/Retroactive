@@ -18,6 +18,17 @@ let osAtLeastTahoe = processInfo.isOperatingSystemAtLeast(OperatingSystemVersion
 let osAtLeastGoldenGate = processInfo.isOperatingSystemAtLeast(OperatingSystemVersion(majorVersion: 27, minorVersion: 0, patchVersion: 0))
 let osAtLeast28 = processInfo.isOperatingSystemAtLeast(OperatingSystemVersion(majorVersion: 28, minorVersion: 0, patchVersion: 0))
 
+/// Late macOS Sonoma updates (and every later release) ship an iLifeMediaBrowser private framework that no
+/// longer exports symbols Aperture and iPhoto link against (e.g. ILAppDefFolderPluginIdentifier), so dyld refuses
+/// to launch them. Probe the system framework directly instead of assuming a particular OS version.
+let systemILifeMediaBrowserNeedsShim: Bool = {
+    let path = "/System/Library/PrivateFrameworks/iLifeMediaBrowser.framework/Versions/A/iLifeMediaBrowser"
+    guard let handle = dlopen(path, RTLD_LAZY | RTLD_LOCAL) else {
+        return osAtLeastSequoia
+    }
+    return dlsym(handle, "ILAppDefFolderPluginIdentifier") == nil
+}()
+
 let discouraged_osExactlyHighSierra = osMajorVersion == 10 && osMinorVersion == 13
 let discouraged_osExactlyMojave = osMajorVersion == 10 && osMinorVersion == 14
 let discouraged_osExactlyCatalina = osMajorVersion == 10 && osMinorVersion == 15

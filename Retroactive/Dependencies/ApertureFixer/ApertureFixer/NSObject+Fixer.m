@@ -101,6 +101,51 @@ static void retro_installReservationFix(void) {
     if (a && b) method_exchangeImplementations(a, b);
 }
 
+// Aperture's Geode -initCIFilters instantiates every built-in CoreImage filter and asks each one for its
+// outputImage. Modern depth/portrait/segmentation filters load Metal kernel libraries that segfault in
+// -[CIKernelLibrary initWithData:error:] on GPUs that macOS no longer natively supports (e.g. Ivy Bridge
+// HD 4000 / Kepler GT 650M running a root-patched OpenCore Legacy Patcher install). Aperture and iPhoto
+// predate all of these filters and never use them, so hide them from category enumeration.
+static NSArray *(*retro_orig_filterNamesInCategories)(id, SEL, NSArray *);
+
+static BOOL retro_isModernMetalOnlyFilter(NSString *name) {
+    static NSArray<NSString *> *needles;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        NSMutableArray *n = [@[@"Depth", @"Portrait", @"Disparity", @"FocalPlane", @"Matte", @"Bokeh",
+                               @"Semantic", @"Person", @"Saliency", @"CoreML", @"VividLight", @"Retouch",
+                               @"Studio", @"Contour", @"Stage", @"Spill", @"HDRUltra", @"Gainmap", @"GainMap"] mutableCopy];
+        NSString *extra = [[NSUserDefaults standardUserDefaults] stringForKey:@"RetroactiveExtraBlockedCIFilters"];
+        if (extra.length) [n addObjectsFromArray:[extra componentsSeparatedByString:@","]];
+        needles = n;
+    });
+    for (NSString *needle in needles) {
+        if ([name rangeOfString:needle].location != NSNotFound) return YES;
+    }
+    return NO;
+}
+
+static NSArray *retro_filterNamesInCategories(id self, SEL _cmd, NSArray *categories) {
+    NSArray *all = retro_orig_filterNamesInCategories(self, _cmd, categories);
+    NSMutableArray *kept = [NSMutableArray arrayWithCapacity:all.count];
+    for (NSString *name in all) {
+        if (!retro_isModernMetalOnlyFilter(name)) [kept addObject:name];
+    }
+    return kept;
+}
+
+static void retro_installCoreImageFilterFix(void) {
+    Class cls = objc_getClass("CIFilter");
+    if (!cls) {
+        dlopen("/System/Library/Frameworks/CoreImage.framework/CoreImage", RTLD_LAZY);
+        cls = objc_getClass("CIFilter");
+    }
+    if (!cls) return;
+    Method m = class_getClassMethod(cls, NSSelectorFromString(@"filterNamesInCategories:"));
+    if (!m || retro_orig_filterNamesInCategories) return;
+    retro_orig_filterNamesInCategories = (NSArray *(*)(id, SEL, NSArray *))method_setImplementation(m, (IMP)retro_filterNamesInCategories);
+}
+
 static double *retro_segFullWidthSlot(id obj) {
     Ivar iv = class_getInstanceVariable(object_getClass(obj), "_fullWidth");
     return iv ? (double *)((char *)obj + ivar_getOffset(iv)) : NULL;
@@ -160,6 +205,8 @@ static double retro_segFullWidthAt(id cell, NSInteger seg);
                                    class_getInstanceMethod(class, @selector(patched_updatePaperMenu)));
 
     retro_installProgressFallbacks();
+
+    retro_installCoreImageFilterFix();
 
     retro_swizzle("NSWindow", @"setTitle:", @selector(retro_winSetTitle:));
     if (retro_osAtLeastTahoe()) {

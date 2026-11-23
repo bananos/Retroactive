@@ -301,7 +301,7 @@ class ProgressViewController: NSViewController, URLSessionDelegate, URLSessionDa
             }
 
             let mediaBrowserPath = "\(appPath)/Contents/Frameworks/iLifeMediaBrowser.framework"
-            if (osAtLeastSequoia) {
+            if (systemILifeMediaBrowserNeedsShim) {
                 self.runTaskAtTemp(toolPath: "/bin/rm", arguments: ["-rf", mediaBrowserPath])
                 self.runTask(toolPath: "/bin/cp", arguments: ["-R", "\(resourcePath)/iLifeMediaBrowserShim", mediaBrowserPath])
             }
@@ -324,7 +324,7 @@ class ProgressViewController: NSViewController, URLSessionDelegate, URLSessionDa
             }
             ProgressViewController.runTask(toolPath: "install_name_tool_packed", arguments: ["-change", resolvedOldAppKitArg, resolvedNewAppKitArg, "\(appPath)/Contents/Frameworks/ProKit.framework/Versions/A/ProKit"], path: resourcePath)
             ProgressViewController.runTask(toolPath: "install_name_tool_packed", arguments: ["-change", resolvedOldAppKitArg, resolvedNewAppKitArg, "\(appPath)/Contents/Frameworks/iLifeKit.framework/Versions/A/iLifeKit"], path: resourcePath)
-            if (osAtLeastSequoia) {
+            if (systemILifeMediaBrowserNeedsShim) {
                 ProgressViewController.runTask(toolPath: "install_name_tool_packed", arguments: ["-change", "/System/Library/PrivateFrameworks/iLifeMediaBrowser.framework/Versions/A/iLifeMediaBrowser", "@executable_path/../Frameworks/iLifeMediaBrowser.framework/Versions/A/iLifeMediaBrowser", "\(appPath)/Contents/MacOS/\(AppManager.shared.binaryNameOfChosenApp)"], path: resourcePath)
             }
             ProgressViewController.runTask(toolPath: "insert_dylib", arguments: [AppManager.shared.fixerBinaryRelativeToExecutablePath, "\(appPath)/Contents/MacOS/\(AppManager.shared.binaryNameOfChosenApp)", "--inplace"], path: resourcePath)

@@ -634,6 +634,9 @@ class AppManager: NSObject {
             if (chosenApp == .iphoto && osAtLeastMontereyE && !FileManager.default.fileExists(atPath: "\(foundAppPath)/Contents/Frameworks/Python.framework")) {
                 return false
             }
+            if (chosenApp == .aperture || chosenApp == .iphoto) && systemILifeMediaBrowserNeedsShim && !FileManager.default.fileExists(atPath: "\(foundAppPath)/Contents/Frameworks/iLifeMediaBrowser.framework") {
+                return false
+            }
             if underscoreState(foundAppPath: foundAppPath) == .neededButNotFound {
                 return false
             }
